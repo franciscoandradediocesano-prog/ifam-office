@@ -78,17 +78,22 @@ cat > autogen.input <<CFG
 --disable-dependency-tracking
 --with-external-tar=$(cygpath -m "$DOWNLOADS")
 CFG
+if command -v sccache >/dev/null; then
+  echo '--enable-ccache' >> autogen.input  # mantem o cache tambem no C++ com PCH
+fi
 echo "== autogen.input:"; cat autogen.input
 ./autogen.sh    # reconfigura tambem quando o codigo-fonte ja existe
 if command -v sccache >/dev/null; then
-  grep -Eq '^export CCACHE[[:space:]]*=.*sccache' config_host.mk || {
-    echo 'ERRO: sccache esta instalado, mas nao foi ativado pelo configure.' >&2
-    exit 1
-  }
+  for compilador in CC CXX; do
+    grep -Eq "^export $compilador[[:space:]]*=.*sccache" config_host.mk || {
+      echo "ERRO: sccache nao foi ativado para $compilador pelo configure." >&2
+      exit 1
+    }
+  done
 fi
 
 # 5) Compilacao (demorada) e geracao do instalador
-echo "== cache de compilacao:"; grep -E '^export (CCACHE|SCCACHE)' config_host.mk || true
+echo "== cache de compilacao:"; grep -E '^export (CC=|CXX=|CCACHE_DEPEND_MODE=)' config_host.mk
 command -v sccache >/dev/null && sccache --show-stats | head -5 || echo "sccache nao encontrado no PATH"
 echo "== downloads ja disponiveis: $(ls "$DOWNLOADS" | wc -l) arquivos"
 make build      # compila tudo e gera o instalador (instsetoo_native)
