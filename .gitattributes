@@ -1,0 +1,3 @@
+# Mantem quebras de linha LF (o Cygwin nao aceita CRLF nos scripts)
+* text=auto eol=lf
+*.png binary
