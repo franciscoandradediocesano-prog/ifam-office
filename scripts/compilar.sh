@@ -34,7 +34,7 @@ fi
 export PATH="/opt/lo/bin:$PATH"
 cmd.exe /d /c 'nasm -v'    # verifica o mesmo ambiente usado pelo OpenSSL
 printf 'bits 64\nsection .text code align=256\nret\n' > /opt/lo/nasm-validacao.asm
-nasm -f win64 -o /opt/lo/nasm-validacao.obj /opt/lo/nasm-validacao.asm
+nasm -f win64 -o "$(cygpath -m /opt/lo/nasm-validacao.obj)" "$(cygpath -m /opt/lo/nasm-validacao.asm)"
 
 # 2) Codigo-fonte original
 if [ ! -d "$FONTE/.git" ]; then
@@ -43,6 +43,10 @@ if [ ! -d "$FONTE/.git" ]; then
 fi
 cd "$FONTE"
 git -c core.autocrlf=false submodule update --init --depth 1 translations dictionaries
+if [ "${1:-}" = '--preparar-fonte' ]; then
+  echo '== Codigo-fonte original pronto para ser guardado em cache.'
+  exit 0
+fi
 
 # O configure reutiliza o resultado negativo da busca por ccache ao buscar
 # sccache. Limpar esse resultado permite detectar o cache instalado no runner.
