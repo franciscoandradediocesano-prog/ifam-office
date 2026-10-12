@@ -9,7 +9,26 @@ on:
         required: true
 
 jobs:
+  marca:
+    name: Gerar imagens da marca
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gerar tela de abertura, logotipos e janela Sobre
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq fonts-crosextra-carlito
+          pip install -q fonttools cairosvg pillow
+          python3 branding/fonte/gerar_marca.py branding
+      - uses: actions/upload-artifact@v4
+        with:
+          name: marca
+          path: |
+            branding/*.png
+            branding/*.svg
+            branding/progress.conf
+
   windows:
+    needs: marca
     runs-on: windows-2022
     timeout-minutes: 360          # limite máximo do GitHub (6 h)
     env:
@@ -19,6 +38,12 @@ jobs:
     steps:
       - name: Baixar este repositório
         uses: actions/checkout@v4
+
+      - name: Baixar as imagens da marca
+        uses: actions/download-artifact@v4
+        with:
+          name: marca
+          path: branding
 
       - name: Cache de compilação (sccache)
         uses: mozilla-actions/sccache-action@v0.0.11
