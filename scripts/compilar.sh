@@ -18,7 +18,13 @@ mkdir -p /opt/lo/bin
 [ -x /opt/lo/bin/make ] || { wget -q -O /opt/lo/bin/make https://dev-www.libreoffice.org/bin/cygwin/make-4.2.1-msvc.exe; chmod +x /opt/lo/bin/make; }
 # o nasm precisa da extensao .exe para ser achado pelo cmd.exe do Windows (OpenSSL)
 [ -x /opt/lo/bin/nasm.exe ] || { wget -q -O /opt/lo/bin/nasm.exe https://dev-www.libreoffice.org/bin/cygwin/nasm.exe; chmod +x /opt/lo/bin/nasm.exe; }
+# Os processos nativos do Windows tambem precisam encontrar o sccache com .exe.
+if [ -n "${SCCACHE_PATH:-}" ]; then
+  cp "$(cygpath -u "$SCCACHE_PATH")" /opt/lo/bin/sccache.exe
+  chmod +x /opt/lo/bin/sccache.exe
+fi
 export PATH="/opt/lo/bin:$PATH"
+cmd.exe /d /c 'nasm -v'    # verifica o mesmo ambiente usado pelo OpenSSL
 
 # 2) Codigo-fonte original
 if [ ! -d "$FONTE/.git" ]; then
@@ -27,6 +33,21 @@ if [ ! -d "$FONTE/.git" ]; then
 fi
 cd "$FONTE"
 git -c core.autocrlf=false submodule update --init --depth 1 translations dictionaries
+
+# O configure reutiliza o resultado negativo da busca por ccache ao buscar
+# sccache. Limpar esse resultado permite detectar o cache instalado no runner.
+python3 - "$FONTE/configure.ac" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+original = '                AC_PATH_PROG([CCACHE],[sccache],[not found])'
+corrigido = '                unset ac_cv_path_CCACHE\n                CCACHE=""\n' + original
+texto = path.read_text(encoding='utf-8')
+if corrigido not in texto:
+    if texto.count(original) != 1:
+        sys.exit('ERRO: a deteccao de sccache mudou no configure.ac; revise a correcao.')
+    path.write_text(texto.replace(original, corrigido, 1), encoding='utf-8', newline='\n')
+PY
 
 # 3) Modificacoes do IFAM Office (atalhos, interface em abas, formatos, icones, fonte)
 python3 "$RAIZ/scripts/personalizar.py" "$FONTE"
@@ -58,7 +79,13 @@ cat > autogen.input <<CFG
 --with-external-tar=$(cygpath -m "$DOWNLOADS")
 CFG
 echo "== autogen.input:"; cat autogen.input
-[ -f config_host.mk ] || ./autogen.sh
+./autogen.sh    # reconfigura tambem quando o codigo-fonte ja existe
+if command -v sccache >/dev/null; then
+  grep -Eq '^export CCACHE[[:space:]]*=.*sccache' config_host.mk || {
+    echo 'ERRO: sccache esta instalado, mas nao foi ativado pelo configure.' >&2
+    exit 1
+  }
+fi
 
 # 5) Compilacao (demorada) e geracao do instalador
 echo "== cache de compilacao:"; grep -E '^export (CCACHE|SCCACHE)' config_host.mk || true
@@ -68,4 +95,8 @@ make build      # compila tudo e gera o instalador (instsetoo_native)
 
 # 6) Copia o .msi para a pasta de saida
 find workdir/installation -name '*.msi' -exec cp -v {} "$SAIDA/" \;
+compgen -G "$SAIDA/*.msi" >/dev/null || {
+  echo 'ERRO: a compilacao terminou sem gerar o instalador .msi.' >&2
+  exit 1
+}
 ls -la "$SAIDA"
