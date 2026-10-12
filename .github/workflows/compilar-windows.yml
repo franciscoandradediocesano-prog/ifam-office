@@ -90,6 +90,27 @@ jobs:
           key: lo-downloads-${{ github.event.inputs.lo_tag }}-${{ github.run_id }}
           restore-keys: lo-downloads-${{ github.event.inputs.lo_tag }}-
 
+      - name: Restaurar codigo-fonte e traducoes
+        id: fontes
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\lo\core
+          key: lo-source-windows-${{ github.event.inputs.lo_tag }}-v1
+
+      - name: Preparar codigo-fonte original quando ainda nao existe cache
+        if: steps.fontes.outputs.cache-hit != 'true'
+        shell: C:\cygwin\bin\bash.exe --login -eo pipefail -o igncr '{0}'
+        run: bash scripts/compilar.sh --preparar-fonte
+
+      # Guarda somente os fontes originais, antes de personalizar ou compilar.
+      # Assim workdir e instdir nao ocupam o cache de downloads das fontes.
+      - name: Guardar codigo-fonte original e traducoes
+        if: steps.fontes.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:\lo\core
+          key: lo-source-windows-${{ github.event.inputs.lo_tag }}-v1
+
       - name: Compilar (3 a 6 horas na primeira vez)
         shell: C:\cygwin\bin\bash.exe --login -eo pipefail -o igncr '{0}'
         run: |
