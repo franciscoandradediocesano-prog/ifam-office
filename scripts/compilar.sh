@@ -57,8 +57,7 @@ echo "== autogen.input:"; cat autogen.input
 [ -f config_host.mk ] || ./autogen.sh
 
 # 5) Compilacao (demorada) e geracao do instalador
-make build-nocheck
-make instsetoo_native
+make build      # compila tudo e gera o instalador (instsetoo_native)
 
 # 6) Copia o .msi para a pasta de saida
 find workdir/installation -name '*.msi' -exec cp -v {} "$SAIDA/" \;
