@@ -14,7 +14,8 @@ df -h /cygdrive/c || true
 # 1) Ferramentas recomendadas pelo LibreOffice para Windows
 mkdir -p /opt/lo/bin
 [ -x /opt/lo/bin/make ] || { wget -q -O /opt/lo/bin/make https://dev-www.libreoffice.org/bin/cygwin/make-4.2.1-msvc.exe; chmod +x /opt/lo/bin/make; }
-[ -x /opt/lo/bin/nasm ] || { wget -q -O /opt/lo/bin/nasm https://dev-www.libreoffice.org/bin/cygwin/nasm.exe; chmod +x /opt/lo/bin/nasm; }
+# o nasm precisa da extensao .exe para ser achado pelo cmd.exe do Windows (OpenSSL)
+[ -x /opt/lo/bin/nasm.exe ] || { wget -q -O /opt/lo/bin/nasm.exe https://dev-www.libreoffice.org/bin/cygwin/nasm.exe; chmod +x /opt/lo/bin/nasm.exe; }
 export PATH="/opt/lo/bin:$PATH"
 
 # 2) Codigo-fonte original
