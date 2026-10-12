@@ -1,0 +1,59 @@
+name: Compilar IFAM Office (Windows)
+
+on:
+  workflow_dispatch:
+    inputs:
+      lo_tag:
+        description: 'Versão do LibreOffice usada como base'
+        default: 'libreoffice-26.2.7.1'
+        required: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 360          # limite máximo do GitHub (6 h)
+    env:
+      LO_TAG: ${{ github.event.inputs.lo_tag }}
+      CHERE_INVOKING: 1           # mantém a pasta atual no shell do Cygwin
+      SCCACHE_GHA_ENABLED: 'true' # guarda o que já foi compilado entre execuções
+    steps:
+      - name: Baixar este repositório
+        uses: actions/checkout@v4
+
+      - name: Cache de compilação (sccache)
+        uses: mozilla-actions/sccache-action@v0.0.11
+
+      - name: Instalar Cygwin
+        uses: cygwin/cygwin-install-action@v6.1
+        with:
+          install-dir: C:\cygwin
+          packages: >-
+            autoconf automake bison cabextract flex gettext-devel git gperf make
+            patch perl pkg-config python3 rsync unzip wget zip
+            perl-Archive-Zip perl-Font-TTF perl-IO-String
+
+      - name: Compilar (3 a 6 horas na primeira vez)
+        shell: C:\cygwin\bin\bash.exe --login -eo pipefail -o igncr '{0}'
+        run: |
+          git config --global core.autocrlf false
+          bash scripts/compilar.sh
+
+      - name: Publicar o instalador .msi
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: IFAM-Office-instalador
+          path: |
+            saida/*.msi
+            saida/*.diff
+          if-no-files-found: warn
+
+      - name: Guardar registros em caso de erro
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: registros-de-erro
+          path: |
+            C:\lo\core\config.log
+            C:\lo\core\autogen.input
+          if-no-files-found: ignore
