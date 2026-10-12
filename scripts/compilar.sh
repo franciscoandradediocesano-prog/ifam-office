@@ -16,8 +16,16 @@ df -h /cygdrive/c || true
 # 1) Ferramentas recomendadas pelo LibreOffice para Windows
 mkdir -p /opt/lo/bin
 [ -x /opt/lo/bin/make ] || { wget -q -O /opt/lo/bin/make https://dev-www.libreoffice.org/bin/cygwin/make-4.2.1-msvc.exe; chmod +x /opt/lo/bin/make; }
-# o nasm precisa da extensao .exe para ser achado pelo cmd.exe do Windows (OpenSSL)
-[ -x /opt/lo/bin/nasm.exe ] || { wget -q -O /opt/lo/bin/nasm.exe https://dev-www.libreoffice.org/bin/cygwin/nasm.exe; chmod +x /opt/lo/bin/nasm.exe; }
+# O binario antigo do LibreOffice (2.11.06) nao suporta o alinhamento do OpenSSL.
+# Fixar a versao e manter .exe permite executar o assembler tambem pelo cmd.exe.
+NASM_VERSAO=3.02
+if [ ! -x /opt/lo/bin/nasm.exe ] || ! /opt/lo/bin/nasm.exe -v | grep -Fq "NASM version $NASM_VERSAO "; then
+  ARQUIVO_NASM="/opt/lo/nasm-$NASM_VERSAO-win64.zip"
+  wget -q --tries=3 --timeout=30 -O "$ARQUIVO_NASM" "https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSAO/win64/nasm-$NASM_VERSAO-win64.zip"
+  echo "161d0bfaff53c2f9e9f3e69fd0672323ebabafd1268976a5cec11be92a19aee7  $ARQUIVO_NASM" | sha256sum -c -
+  unzip -p "$ARQUIVO_NASM" "nasm-$NASM_VERSAO/nasm.exe" > /opt/lo/bin/nasm.exe
+  chmod +x /opt/lo/bin/nasm.exe
+fi
 # Os processos nativos do Windows tambem precisam encontrar o sccache com .exe.
 if [ -n "${SCCACHE_PATH:-}" ]; then
   cp "$(cygpath -u "$SCCACHE_PATH")" /opt/lo/bin/sccache.exe
@@ -25,6 +33,8 @@ if [ -n "${SCCACHE_PATH:-}" ]; then
 fi
 export PATH="/opt/lo/bin:$PATH"
 cmd.exe /d /c 'nasm -v'    # verifica o mesmo ambiente usado pelo OpenSSL
+printf 'bits 64\nsection .text code align=256\nret\n' > /opt/lo/nasm-validacao.asm
+nasm -f win64 -o /opt/lo/nasm-validacao.obj /opt/lo/nasm-validacao.asm
 
 # 2) Codigo-fonte original
 if [ ! -d "$FONTE/.git" ]; then
