@@ -7,6 +7,8 @@ LO_TAG="${LO_TAG:-libreoffice-26.2.7.1}"            # versao estavel do LibreOff
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"             # pasta deste repositorio
 FONTE="${FONTE:-/cygdrive/c/lo/core}"                # caminho curto e sem espacos (exigencia do Windows)
 SAIDA="${SAIDA:-$RAIZ/saida}"
+DOWNLOADS="${DOWNLOADS:-/cygdrive/c/lo/tarballs}"     # bibliotecas externas baixadas (guardadas em cache entre execucoes)
+mkdir -p "$DOWNLOADS"
 
 echo "== IFAM Office | base: $LO_TAG | fonte: $FONTE"
 df -h /cygdrive/c || true
@@ -53,11 +55,15 @@ cat > autogen.input <<CFG
 --disable-firebird-sdbc
 --disable-cve-tests
 --disable-dependency-tracking
+--with-external-tar=$(cygpath -m "$DOWNLOADS")
 CFG
 echo "== autogen.input:"; cat autogen.input
 [ -f config_host.mk ] || ./autogen.sh
 
 # 5) Compilacao (demorada) e geracao do instalador
+echo "== cache de compilacao:"; grep -E '^export (CCACHE|SCCACHE)' config_host.mk || true
+command -v sccache >/dev/null && sccache --show-stats | head -5 || echo "sccache nao encontrado no PATH"
+echo "== downloads ja disponiveis: $(ls "$DOWNLOADS" | wc -l) arquivos"
 make build      # compila tudo e gera o instalador (instsetoo_native)
 
 # 6) Copia o .msi para a pasta de saida
