@@ -45,7 +45,7 @@ branding/fonte/            gerador das imagens (edite as cores e os textos aqui)
 1. Abra a aba **Actions**, escolha **Compilar IFAM Office (Windows)** e clique em **Run workflow**.
 2. Ao terminar, baixe o **IFAM-Office-instalador** na página da execução. Ele contém o .msi e o .diff com as mudanças aplicadas.
 
-A primeira compilação leva de 3 a 6 horas. O GitHub interrompe execuções que passam de 6 horas. Se isso acontecer, clique em **Re-run jobs**: o cache (sccache) guarda o que já foi compilado, e a segunda execução termina bem mais rápido.
+A primeira compilação pode levar várias horas. As próximas execuções reaproveitam o código-fonte original, as traduções, os downloads de bibliotecas e os resultados disponíveis no cache de compilação (sccache). O cache das fontes é salvo antes da compilação, para continuar disponível mesmo se o build falhar. O GitHub interrompe jobs que passam de 6 horas; nesse caso, clique em **Re-run jobs** para reutilizar os caches.
 
 ## Atualizar para uma nova versão do LibreOffice
 
