@@ -27,8 +27,28 @@ jobs:
             branding/*.svg
             branding/progress.conf
 
+  pkgconf:
+    name: Compilar pkgconf para Windows
+    runs-on: windows-2022
+    steps:
+      - uses: ilammy/msvc-dev-cmd@v1.13.0
+      - name: Compilar pkgconf 2.4.3 (exigido pelo LibreOffice para o harfbuzz)
+        shell: pwsh
+        run: |
+          python -m pip install --quiet meson ninja
+          git clone --quiet --depth 1 --branch pkgconf-2.4.3 https://github.com/pkgconf/pkgconf C:\pkgconf-src
+          meson setup C:\pkgconf-src\build C:\pkgconf-src --buildtype=release --default-library=static -Dtests=disabled
+          meson compile -C C:\pkgconf-src\build
+          New-Item -ItemType Directory -Force saida | Out-Null
+          Copy-Item C:\pkgconf-src\build\pkgconf.exe saida\pkgconf-2.4.3.exe
+          saida\pkgconf-2.4.3.exe --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkgconf
+          path: saida/pkgconf-2.4.3.exe
+
   windows:
-    needs: marca
+    needs: [marca, pkgconf]
     runs-on: windows-2022
     timeout-minutes: 360          # limite máximo do GitHub (6 h)
     env:
@@ -56,6 +76,12 @@ jobs:
             autoconf automake bison cabextract flex gettext-devel git gperf make
             patch perl pkg-config python3 rsync unzip wget zip
             perl-Archive-Zip perl-Font-TTF perl-IO-String
+
+      - name: Baixar o pkgconf compilado
+        uses: actions/download-artifact@v4
+        with:
+          name: pkgconf
+          path: C:\cygwin\opt\lo\bin
 
       - name: Compilar (3 a 6 horas na primeira vez)
         shell: C:\cygwin\bin\bash.exe --login -eo pipefail -o igncr '{0}'
