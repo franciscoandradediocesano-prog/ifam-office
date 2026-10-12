@@ -83,11 +83,25 @@ jobs:
           name: pkgconf
           path: C:\cygwin\opt\lo\bin
 
+      - name: Restaurar downloads de execuções anteriores
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\lo\tarballs
+          key: lo-downloads-${{ github.event.inputs.lo_tag }}-${{ github.run_id }}
+          restore-keys: lo-downloads-${{ github.event.inputs.lo_tag }}-
+
       - name: Compilar (3 a 6 horas na primeira vez)
         shell: C:\cygwin\bin\bash.exe --login -eo pipefail -o igncr '{0}'
         run: |
           git config --global core.autocrlf false
           bash scripts/compilar.sh
+
+      - name: Guardar downloads para a próxima execução
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: C:\lo\tarballs
+          key: lo-downloads-${{ github.event.inputs.lo_tag }}-${{ github.run_id }}
 
       - name: Publicar o instalador .msi
         if: always()
