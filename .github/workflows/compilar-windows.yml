@@ -59,6 +59,15 @@ jobs:
       - name: Baixar este repositório
         uses: actions/checkout@v4
 
+      # Trocar v1 ao mudar autogen.input, ferramentas ou patches do compilador.
+      # Correcoes exclusivas do MSI nao invalidam o programa ja compilado.
+      - name: Identificar ambiente do ponto de retomada
+        id: ambiente
+        shell: pwsh
+        run: |
+          if (-not $env:ImageVersion) { throw 'Versao da imagem Windows nao informada.' }
+          "image=$env:ImageVersion" >> $env:GITHUB_OUTPUT
+
       - name: Baixar as imagens da marca
         uses: actions/download-artifact@v4
         with:
@@ -90,32 +99,52 @@ jobs:
           key: lo-downloads-${{ github.event.inputs.lo_tag }}-${{ github.run_id }}
           restore-keys: lo-downloads-${{ github.event.inputs.lo_tag }}-
 
+      - name: Restaurar ponto de retomada dos binarios
+        id: binarios
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\lo\core
+          key: lo-build-windows-${{ github.event.inputs.lo_tag }}-v1-${{ steps.ambiente.outputs.image }}-${{ hashFiles('scripts/personalizar.py', 'branding/fonte/**') }}
+
       - name: Restaurar codigo-fonte e traducoes
         id: fontes
+        if: steps.binarios.outputs.cache-hit != 'true'
         uses: actions/cache/restore@v4
         with:
           path: C:\lo\core
           key: lo-source-windows-${{ github.event.inputs.lo_tag }}-v1
 
       - name: Preparar codigo-fonte original quando ainda nao existe cache
-        if: steps.fontes.outputs.cache-hit != 'true'
+        if: steps.binarios.outputs.cache-hit != 'true' && steps.fontes.outputs.cache-hit != 'true'
         shell: C:\cygwin\bin\bash.exe --login -eo pipefail -o igncr '{0}'
         run: bash scripts/compilar.sh --preparar-fonte
 
       # Guarda somente os fontes originais, antes de personalizar ou compilar.
       # Assim workdir e instdir nao ocupam o cache de downloads das fontes.
       - name: Guardar codigo-fonte original e traducoes
-        if: steps.fontes.outputs.cache-hit != 'true'
+        if: steps.binarios.outputs.cache-hit != 'true' && steps.fontes.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: C:\lo\core
           key: lo-source-windows-${{ github.event.inputs.lo_tag }}-v1
 
-      - name: Compilar (3 a 6 horas na primeira vez)
+      - name: Compilar binarios aproveitando o sccache
+        if: steps.binarios.outputs.cache-hit != 'true'
         shell: C:\cygwin\bin\bash.exe --login -eo pipefail -o igncr '{0}'
         run: |
           git config --global core.autocrlf false
-          bash scripts/compilar.sh
+          bash scripts/compilar.sh --compilar-binarios
+
+      - name: Guardar build completo antes de gerar o MSI
+        if: steps.binarios.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:\lo\core
+          key: lo-build-windows-${{ github.event.inputs.lo_tag }}-v1-${{ steps.ambiente.outputs.image }}-${{ hashFiles('scripts/personalizar.py', 'branding/fonte/**') }}
+
+      - name: Gerar MSI a partir dos binarios prontos
+        shell: C:\cygwin\bin\bash.exe --login -eo pipefail -o igncr '{0}'
+        run: bash scripts/compilar.sh --gerar-instalador
 
       - name: Guardar downloads para a próxima execução
         if: always()
@@ -125,14 +154,14 @@ jobs:
           key: lo-downloads-${{ github.event.inputs.lo_tag }}-${{ github.run_id }}
 
       - name: Publicar o instalador .msi
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: IFAM-Office-instalador
           path: |
             saida/*.msi
             saida/*.diff
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Guardar registros em caso de erro
         if: failure()
@@ -142,4 +171,5 @@ jobs:
           path: |
             C:\lo\core\config.log
             C:\lo\core\autogen.input
+            C:\lo\core\workdir\CustomTarget\instsetoo_native\install\*.log
           if-no-files-found: ignore
