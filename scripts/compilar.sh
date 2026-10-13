@@ -8,6 +8,11 @@ RAIZ="$(cd "$(dirname "$0")/.." && pwd)"             # pasta deste repositorio
 FONTE="${FONTE:-/cygdrive/c/lo/core}"                # caminho curto e sem espacos (exigencia do Windows)
 SAIDA="${SAIDA:-$RAIZ/saida}"
 DOWNLOADS="${DOWNLOADS:-/cygdrive/c/lo/tarballs}"     # bibliotecas externas baixadas (guardadas em cache entre execucoes)
+MODO="${1:---compilar-tudo}"
+case "$MODO" in
+  --compilar-tudo|--preparar-fonte|--compilar-binarios|--gerar-instalador) ;;
+  *) echo "ERRO: modo desconhecido: $MODO" >&2; exit 1 ;;
+esac
 mkdir -p "$DOWNLOADS"
 
 echo "== IFAM Office | base: $LO_TAG | fonte: $FONTE"
@@ -35,6 +40,28 @@ export PATH="/opt/lo/bin:$PATH"
 cmd.exe /d /c 'nasm -v'    # verifica o mesmo ambiente usado pelo OpenSSL
 printf 'bits 64\nsection .text code align=256\nret\n' > /opt/lo/nasm-validacao.asm
 nasm -f win64 -o "$(cygpath -m /opt/lo/nasm-validacao.obj)" "$(cygpath -m /opt/lo/nasm-validacao.asm)"
+
+# Retomada do build salvo: preserva fontes, configuracao, objetos e timestamps.
+# Corrigir o MSI nao deve reaplicar a personalizacao nem reconfigurar o C++.
+if [ "$MODO" = '--gerar-instalador' ]; then
+  [ -f "$FONTE/.ifam-build-pronto" ] && [ "$(cat "$FONTE/.ifam-build-pronto")" = "$LO_TAG" ] || {
+    echo 'ERRO: ponto de retomada dos binarios nao encontrado para esta versao.' >&2
+    exit 1
+  }
+  cd "$FONTE"
+  python3 "$RAIZ/scripts/preparar_instalador.py" "$FONTE"
+  python3 "$RAIZ/scripts/preparar_instalador.py" "$FONTE" --validar
+  mkdir -p "$SAIDA"
+  git diff > "$SAIDA/ifam-office-mudancas-$LO_TAG.diff"
+  make build
+  find workdir/installation -name '*.msi' -exec cp -v {} "$SAIDA/" \;
+  compgen -G "$SAIDA/*.msi" >/dev/null || {
+    echo 'ERRO: o empacotamento terminou sem gerar o instalador .msi.' >&2
+    exit 1
+  }
+  ls -la "$SAIDA"
+  exit 0
+fi
 
 # 2) Codigo-fonte original
 if [ ! -d "$FONTE/.git" ]; then
@@ -65,6 +92,7 @@ PY
 
 # 3) Modificacoes do IFAM Office (atalhos, interface em abas, formatos, icones, fonte)
 python3 "$RAIZ/scripts/personalizar.py" "$FONTE"
+python3 "$RAIZ/scripts/preparar_instalador.py" "$FONTE"
 mkdir -p "$SAIDA" && git diff > "$SAIDA/ifam-office-mudancas-$LO_TAG.diff"   # registro publico das mudancas (MPL)
 rm -rf "$FONTE/ifam-branding" && cp -r "$RAIZ/branding" "$FONTE/ifam-branding" && rm -rf "$FONTE/ifam-branding/fonte"
 
@@ -97,6 +125,7 @@ if command -v sccache >/dev/null; then
 fi
 echo "== autogen.input:"; cat autogen.input
 ./autogen.sh    # reconfigura tambem quando o codigo-fonte ja existe
+python3 "$RAIZ/scripts/preparar_instalador.py" "$FONTE" --validar
 if command -v sccache >/dev/null; then
   for compilador in CC CXX; do
     grep -Eq "^export $compilador[[:space:]]*=.*sccache" config_host.mk || {
@@ -110,7 +139,13 @@ fi
 echo "== cache de compilacao:"; grep -E '^export (CC=|CXX=|CCACHE_DEPEND_MODE=)' config_host.mk
 command -v sccache >/dev/null && sccache --show-stats | head -5 || echo "sccache nao encontrado no PATH"
 echo "== downloads ja disponiveis: $(ls "$DOWNLOADS" | wc -l) arquivos"
-make build      # compila tudo e gera o instalador (instsetoo_native)
+if [ "$MODO" = '--compilar-binarios' ]; then
+  make build PKGFORMAT=   # monta o programa sem entrar no empacotamento
+  printf '%s\n' "$LO_TAG" > .ifam-build-pronto
+  echo '== Binarios prontos. Guardar o ponto de retomada antes de gerar o MSI.'
+  exit 0
+fi
+make build      # modo local: compila tudo e gera o instalador
 
 # 6) Copia o .msi para a pasta de saida
 find workdir/installation -name '*.msi' -exec cp -v {} "$SAIDA/" \;
