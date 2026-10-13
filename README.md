@@ -45,7 +45,11 @@ branding/fonte/            gerador das imagens (edite as cores e os textos aqui)
 1. Abra a aba **Actions**, escolha **Compilar IFAM Office (Windows)** e clique em **Run workflow**.
 2. Ao terminar, baixe o **IFAM-Office-instalador** na página da execução. Ele contém o .msi e o .diff com as mudanças aplicadas.
 
-A primeira compilação pode levar várias horas. As próximas execuções reaproveitam o código-fonte original, as traduções, os downloads de bibliotecas e os resultados disponíveis no cache de compilação (sccache). O cache das fontes é salvo antes da compilação, para continuar disponível mesmo se o build falhar. O GitHub interrompe jobs que passam de 6 horas; nesse caso, clique em **Re-run jobs** para reutilizar os caches.
+A primeira compilação pode levar várias horas. As próximas execuções reaproveitam o código-fonte original, as traduções, os downloads de bibliotecas e os resultados disponíveis no cache de compilação (sccache). O cache das fontes é salvo antes da compilação, para continuar disponível mesmo se o build falhar.
+
+O fluxo valida a definição dos produtos do instalador antes de compilar. Em seguida, compila os binários sem gerar o MSI e salva um ponto de retomada com as fontes configuradas, `workdir` e `instdir`. Só depois gera o instalador. Se o empacotamento falhar, outra execução com a mesma base, personalização e imagem Windows pode restaurar esse build e ir diretamente para a geração do MSI. Correções exclusivas do instalador não invalidam esse ponto de retomada; mudanças nas opções de compilação ou nas ferramentas exigem atualizar a versão da chave `lo-build-windows` no workflow.
+
+O GitHub interrompe jobs que passam de 6 horas. Os caches dependem da disponibilidade e da retenção do GitHub; quando não houver ponto de retomada completo, as fontes e os resultados disponíveis no sccache ainda podem ser reaproveitados. O sccache não guarda todos os arquivos, especialmente os compilados com determinados parâmetros de cabeçalhos pré-compilados do MSVC.
 
 ## Atualizar para uma nova versão do LibreOffice
 
