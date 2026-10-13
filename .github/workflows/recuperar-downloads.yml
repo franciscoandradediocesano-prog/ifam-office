@@ -1,0 +1,35 @@
+name: Recuperar bibliotecas para Windows local
+
+on:
+  workflow_dispatch:
+    inputs:
+      lo_tag:
+        description: Base do LibreOffice usada no cache
+        default: libreoffice-26.2.7.1
+        required: true
+
+jobs:
+  transferir:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - name: Recuperar bibliotecas do cache existente
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\lo\tarballs
+          key: lo-downloads-${{ github.event.inputs.lo_tag }}-transferencia-${{ github.run_id }}
+          restore-keys: lo-downloads-${{ github.event.inputs.lo_tag }}-
+      - name: Verificar arquivos recuperados
+        shell: pwsh
+        run: |
+          $arquivos = @(Get-ChildItem -LiteralPath C:\lo\tarballs -File -ErrorAction Stop)
+          if ($arquivos.Count -eq 0) { throw 'Nenhuma biblioteca recuperada do cache.' }
+          Write-Output "Bibliotecas recuperadas: $($arquivos.Count) arquivos"
+      - name: Disponibilizar bibliotecas para o computador local
+        uses: actions/upload-artifact@v4
+        with:
+          name: bibliotecas-ifam-office-local
+          path: C:\lo\tarballs
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
